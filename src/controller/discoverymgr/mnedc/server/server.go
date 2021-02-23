@@ -21,8 +21,9 @@ import (
 	"errors"
 	"github.com/lf-edge/edge-home-orchestration-go/src/common/logmgr"
 	"net"
-	"strconv"
+	"math/rand"
 	"sync"
+	"time"
 
 	"github.com/lf-edge/edge-home-orchestration-go/src/controller/discoverymgr/mnedc/connectionutil"
 	"github.com/lf-edge/edge-home-orchestration-go/src/controller/discoverymgr/mnedc/tunmgr"
@@ -50,8 +51,6 @@ type IPTypes struct {
 
 const (
 	logTag               = "[mnedcserver]"
-	serverVirtualAddress = "10.0.0.1/24"
-	virtualIPPrefix      = "10.0.0."
 	channelSize          = 200
 	packetSize           = 1024
 )
@@ -61,6 +60,7 @@ var (
 	tunIns         tunmgr.Tun
 	networkUtilIns connectionutil.NetworkUtil
 	log            = logmgr.GetInstance()
+	serverVirtualIP net.IP
 )
 
 //Server defines MNEDC server struct
@@ -97,6 +97,7 @@ type MNEDCServer interface {
 	TunReadRoutine()
 	TunWriteRoutine()
 	Close() error
+	GetVirtualIP() string
 }
 
 func init() {
@@ -122,14 +123,14 @@ func (s *Server) CreateServer(address, port string, isSecure bool) (*Server, err
 		return nil, err
 	}
 
-	virtualIP, virtualNetMask, err := net.ParseCIDR(serverVirtualAddress)
-	if err != nil {
-		return nil, errors.New(logPrefix + " Invalid network/mask:" + err.Error())
-	}
+	setRandomIP()
 
 	s.listener = listener
-	s.virtualIP = virtualIP
-	s.netMask = virtualNetMask
+	s.virtualIP = serverVirtualIP
+	s.netMask = &net.IPNet{
+		IP:s.virtualIP,
+		Mask: net.CIDRMask(24, 32),
+	}
 	s.isAlive = true
 	s.clientCount = 1
 	s.clients = map[string]*clientConnection{}
@@ -240,7 +241,7 @@ func (s *Server) SetVirtualIP(deviceID string) string {
 		ip = val
 	} else {
 		s.clientCount = s.clientCount + 1
-		ip = virtualIPPrefix + strconv.Itoa(s.clientCount)
+		ip = net.IPv4(s.virtualIP[12], s.virtualIP[13], s.virtualIP[14], byte(s.clientCount)).String()
 		s.clientsLock.Lock()
 		s.clientAddressByDeviceID[deviceID] = ip
 		s.clientsLock.Unlock()
@@ -367,4 +368,15 @@ func (s *Server) Close() error {
 	}
 
 	return err
+}
+
+//GetVirtualIP returns the server virtualIP
+func (s *Server) GetVirtualIP() string {
+	return s.virtualIP.String()
+}
+
+func setRandomIP() {
+	rand.Seed(time.Now().UnixNano())
+	serverVirtualIP = net.IPv4(10,byte(rand.Intn(255)),byte(rand.Intn(255)),1)
+	log.Println("Virtual IP : ",serverVirtualIP)
 }
