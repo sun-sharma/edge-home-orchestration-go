@@ -59,21 +59,21 @@ func TestStartMNEDCServer(t *testing.T) {
 
 	t.Run("ServerError", func(t *testing.T) {
 		s := GetServerInstance()
-		mockMnedcServer.EXPECT().CreateServer(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New(""))
+		mockNetwork.EXPECT().GetOutboundIP().Return("defaultOutboundIP", nil)
+		mockMnedcServer.EXPECT().CreateServer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New(""))
 		s.StartMNEDCServer(defaultDeviceIDFilePath)
 	})
 	t.Run("GetOutboundIPError", func(t *testing.T) {
 		s := GetServerInstance()
-		mockMnedcServer.EXPECT().CreateServer(gomock.Any(), gomock.Any(), gomock.Any()).Return(&server.Server{}, nil)
-		mockMnedcServer.EXPECT().Run()
 		mockNetwork.EXPECT().GetOutboundIP().Return("", errors.New(""))
 		s.StartMNEDCServer(defaultDeviceIDFilePath)
 	})
 	t.Run("Success", func(t *testing.T) {
 		s := GetServerInstance()
-		mockMnedcServer.EXPECT().CreateServer(gomock.Any(), gomock.Any(), gomock.Any()).Return(&server.Server{}, nil)
-		mockMnedcServer.EXPECT().Run()
 		mockNetwork.EXPECT().GetOutboundIP().Return(defaultOutboundIP, nil)
+		mockMnedcServer.EXPECT().CreateServer(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&server.Server{}, nil)
+		mockMnedcServer.EXPECT().Run()
+		mockMnedcServer.EXPECT().GetVirtualIP().Return(clientDefaultVirtualIP)
 		mockMnedcServer.EXPECT().SetClientIP(gomock.Any(), gomock.Any(), gomock.Any())
 		s.StartMNEDCServer(defaultDeviceIDFilePath)
 	})

@@ -67,19 +67,19 @@ func (ServerImpl) StartMNEDCServer(deviceIDPath string) {
 		return
 	}
 
-	_, err = mnedcServerIns.CreateServer("", strconv.Itoa(mnedcServerPort), serverIns.IsSetCert)
+	privateIP, err := networkIns.GetOutboundIP()
+	if err != nil {
+		log.Println(logPrefix, "Couldn't start MNEDC server, Error in getting private IP ", err.Error())
+		return
+	}
+
+	_, err = mnedcServerIns.CreateServer("", strconv.Itoa(mnedcServerPort), serverIns.IsSetCert, privateIP)
 	if err != nil {
 		log.Println(logPrefix, "Couldn't start MNEDC server", err.Error())
 		return
 	}
 
 	mnedcServerIns.Run()
-
-	privateIP, err := networkIns.GetOutboundIP()
-	if err != nil {
-		log.Println(logPrefix, "Couldn't start MNEDC server, Error in getting private IP ", err.Error())
-		return
-	}
 
 	startMNEDCBroadcastServer()
 	mnedcServerIns.SetClientIP(deviceID, privateIP, mnedcServerIns.GetVirtualIP())

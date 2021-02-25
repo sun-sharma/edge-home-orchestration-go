@@ -19,6 +19,7 @@ package server
 
 import (
 	"errors"
+	"math/rand"
 	"net"
 	"testing"
 	"time"
@@ -49,6 +50,7 @@ const (
 	edgePrefix       = "edge-orchestration-"
 	localhost        = "127.0.0.1"
 	defaultMsg       = "dummy"
+	defaultPrivateIP = "192.168.1.1"
 
 	defaultTCPPort = "8000"
 	defaultTunPort = "9999"
@@ -117,7 +119,7 @@ func TestCreateServer(t *testing.T) {
 	t.Run("ListenError", func(t *testing.T) {
 		mockNetworkUtil.EXPECT().ListenIP(gomock.Any(), gomock.Any()).Return(nil, errors.New("Listen error"))
 		serverInstance := GetInstance()
-		_, err := serverInstance.CreateServer("", "", false)
+		_, err := serverInstance.CreateServer("", "", false, defaultPrivateIP)
 		if err == nil {
 			t.Error("Server should not be started")
 		}
@@ -127,7 +129,7 @@ func TestCreateServer(t *testing.T) {
 		mockNetworkUtil.EXPECT().ListenIP(gomock.Any(), gomock.Any()).Return(defaultListener, nil)
 		mockTun.EXPECT().CreateTUN().Return(nil, errors.New("TUN error"))
 		serverInstance := GetInstance()
-		_, err := serverInstance.CreateServer("", "", false)
+		_, err := serverInstance.CreateServer("", "", false, defaultPrivateIP)
 		if err == nil {
 			t.Error("Server should not be started")
 		}
@@ -141,7 +143,7 @@ func TestCreateServer(t *testing.T) {
 		mockTun.EXPECT().SetTUNStatus(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("TUN Errror"))
 
 		serverInstance := GetInstance()
-		_, err := serverInstance.CreateServer("", "", false)
+		_, err := serverInstance.CreateServer("", "", false, defaultPrivateIP)
 		if err == nil {
 			t.Error("Server should not be started")
 		}
@@ -155,7 +157,7 @@ func TestCreateServer(t *testing.T) {
 		mockTun.EXPECT().SetTUNStatus(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		serverInstance := GetInstance()
-		server, err := serverInstance.CreateServer("", "", false)
+		server, err := serverInstance.CreateServer("", "", false, defaultPrivateIP)
 		if err != nil {
 			t.Error("Server not started")
 		}
@@ -176,6 +178,7 @@ func TestClientMaps(t *testing.T) {
 			clientIDByAddress:       map[string]string{},
 			clientAddressByDeviceID: map[string]string{},
 			clientCount:             1,
+			virtualIP:               net.IPv4(10,7,byte(rand.Intn(255)),1),
 		}
 
 		serverInstance.SetClientIP(defaultID, defaultIP, defaultVirtualIP)
@@ -217,7 +220,7 @@ func TestNewConnection(t *testing.T) {
 		mockTun.EXPECT().SetTUNStatus(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		serverInstance := GetInstance()
-		server, err := serverInstance.CreateServer("", "", false)
+		server, err := serverInstance.CreateServer("", "", false, defaultPrivateIP)
 		if err != nil {
 			t.Error("Server not started")
 			return
@@ -253,7 +256,7 @@ func TestNewConnection(t *testing.T) {
 		mockTun.EXPECT().SetTUNStatus(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		serverInstance := GetInstance()
-		server, err := serverInstance.CreateServer("", "", false)
+		server, err := serverInstance.CreateServer("", "", false, defaultPrivateIP)
 		if err != nil {
 			t.Error("Server not started")
 			return

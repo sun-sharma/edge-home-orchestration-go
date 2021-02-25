@@ -20,8 +20,10 @@ package server
 import (
 	"errors"
 	"github.com/lf-edge/edge-home-orchestration-go/src/common/logmgr"
-	"net"
 	"math/rand"
+	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,7 +85,7 @@ type Server struct {
 
 //MNEDCServer declares methods related to MNEDC server
 type MNEDCServer interface {
-	CreateServer(string, string, bool) (*Server, error)
+	CreateServer(string, string, bool, string) (*Server, error)
 	Run()
 	AcceptRoutine()
 	HandleConnection(net.Conn)
@@ -112,7 +114,7 @@ func GetInstance() MNEDCServer {
 }
 
 //CreateServer creates a Server structure and returns it
-func (s *Server) CreateServer(address, port string, isSecure bool) (*Server, error) {
+func (s *Server) CreateServer(address, port string, isSecure bool, privateIP string) (*Server, error) {
 	logPrefix := logTag + "[NewServer]"
 
 	src := address + ":" + port
@@ -123,7 +125,7 @@ func (s *Server) CreateServer(address, port string, isSecure bool) (*Server, err
 		return nil, err
 	}
 
-	setRandomIP()
+	setRandomIP(privateIP)
 
 	s.listener = listener
 	s.virtualIP = serverVirtualIP
@@ -375,8 +377,17 @@ func (s *Server) GetVirtualIP() string {
 	return s.virtualIP.String()
 }
 
-func setRandomIP() {
+func setRandomIP(privateIP string) {
 	rand.Seed(time.Now().UnixNano())
-	serverVirtualIP = net.IPv4(10,byte(rand.Intn(255)),byte(rand.Intn(255)),1)
+	privateIP = "107.107.107.107"
+	PrivateIPSplit := strings.Split(privateIP,".")
+	PrivateIPPart,_ := strconv.Atoi(PrivateIPSplit[1])
+	VirtualIPPart := byte(rand.Intn(255))
+	serverVirtualIP = net.IPv4(10,VirtualIPPart,byte(rand.Intn(255)),1)
+	if byte(PrivateIPPart) == VirtualIPPart {
+		//Assigning new Virtual IP address in case of clash with Private IP
+		serverVirtualIP = net.IPv4(10,byte(rand.Intn(255)),byte(rand.Intn(255)),1)
+	}
 	log.Println("Virtual IP : ",serverVirtualIP)
+	log.Println("Private IP : ", privateIP)
 }
