@@ -379,7 +379,6 @@ func (s *Server) GetVirtualIP() string {
 
 func setRandomIP(privateIP string) {
 	rand.Seed(time.Now().UnixNano())
-	privateIP = "107.107.107.107"
 	PrivateIPSplit := strings.Split(privateIP,".")
 	PrivateIPPart,_ := strconv.Atoi(PrivateIPSplit[1])
 	VirtualIPPart := byte(rand.Intn(255))
