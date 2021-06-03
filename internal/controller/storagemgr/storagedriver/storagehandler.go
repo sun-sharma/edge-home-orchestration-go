@@ -33,13 +33,15 @@ import (
 	sdk "github.com/edgexfoundry/device-sdk-go/pkg/service"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
+	"github.com/pelletier/go-toml"
 )
 
 const (
-	deviceNameKey     = "deviceName"
-	resourceNameKey   = "resourceName"
-	apiResourceRoute  = clients.ApiBase + "/resource/{" + deviceNameKey + "}/{" + resourceNameKey + "}"
-	handlerContextKey = "StorageHandler"
+	deviceNameKey       = "deviceName"
+	resourceNameKey     = "resourceName"
+	apiResourceRoute    = clients.ApiBase + "/resource/{" + deviceNameKey + "}/{" + resourceNameKey + "}"
+	handlerContextKey   = "StorageHandler"
+	configPath          = "res/configuration.toml"
 )
 
 type StorageHandler struct {
@@ -63,6 +65,10 @@ func (handler StorageHandler) Start() error {
 		return fmt.Errorf("unable to add required route: %s: %s", apiResourceRoute, err.Error())
 	}
 
+	if err := handler.service.AddRoute(apiResourceRoute, handler.addContext(deviceHandler), http.MethodGet); err != nil {
+		return fmt.Errorf("unable to add required route: %s: %s", apiResourceRoute, err.Error())
+	}
+
 	handler.logger.Info(fmt.Sprintf("Route %s added.", apiResourceRoute))
 
 	return nil
@@ -76,7 +82,52 @@ func (handler StorageHandler) addContext(next func(http.ResponseWriter, *http.Re
 	})
 }
 
-func (handler StorageHandler) processAsyncRequest(writer http.ResponseWriter, request *http.Request) {
+// processGetAsyncRequest is used to handle Async Get Requests
+func (handler StorageHandler) processAsyncGetRequest(writer http.ResponseWriter, request *http.Request) {
+	vars := mux.Vars(request)
+	deviceName := vars[deviceNameKey]
+	resourceName := vars[resourceNameKey]
+
+	handler.logger.Debug(fmt.Sprintf("Received POST for Device=%s Resource=%s", deviceName, resourceName))
+
+	_, err := handler.service.GetDeviceByName(deviceName)
+	if err != nil {
+		handler.logger.Error(fmt.Sprintf("Incoming reading ignored. Device '%s' not found", deviceName))
+		http.Error(writer, fmt.Sprintf("Device not found"), http.StatusNotFound)
+		return
+	}
+	_, ok := handler.service.DeviceResource(deviceName, resourceName, "get")
+	if !ok {
+		handler.logger.Error(fmt.Sprintf("Incoming reading ignored. Resource '%s' not found", resourceName))
+		http.Error(writer, fmt.Sprintf("Resource not found"), http.StatusNotFound)
+		return
+	}
+
+	ServerIP, err := getServerIP(configPath)
+
+	if err != nil {
+		http.Error(writer, fmt.Sprintf("Configuration File Not Found"), http.StatusNotFound)
+		return
+	}
+
+	RequestUrl := "http://" + ServerIP + ":48080/api/v1/reading/name/" + resourceName + "/device/" + deviceName + "/1"
+	log.Println(RequestUrl)
+	resp, err := http.Get(RequestUrl)
+	if err != nil {
+		http.Error(writer, fmt.Sprintf("Resource not found"), http.StatusNotFound)
+		return
+	}
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(writer, fmt.Sprintf("Unable to fetch the response"), http.StatusNotFound)
+		return
+	}
+
+	fmt.Fprintf(writer, string(bodyBytes))
+}
+
+func (handler StorageHandler) processAsyncPostRequest(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	deviceName := vars[deviceNameKey]
 	resourceName := vars[resourceNameKey]
@@ -193,8 +244,13 @@ func deviceHandler(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte("Bad context pass to handler"))
 		return
 	}
+	switch request.Method{
+	case "GET":
+		handler.processAsyncGetRequest(writer, request)
+	case "POST":
+		handler.processAsyncPostRequest(writer, request)
+	}
 
-	handler.processAsyncRequest(writer, request)
 }
 
 func convertToBase64(val []byte) string {
@@ -407,4 +463,12 @@ func checkFloatValueRange(valueType models.ValueType, val float64) bool {
 		}
 	}
 	return isValid
+}
+
+func getServerIP(ConfigPath string) (string, error) {
+	config, err := toml.LoadFile(ConfigPath)
+	if err != nil {
+		return "", err
+	}
+	return config.Get("Clients.Data.Host").(string), nil
 }
