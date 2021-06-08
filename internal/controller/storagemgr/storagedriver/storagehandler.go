@@ -21,6 +21,7 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"fmt"
+	"github.com/lf-edge/edge-home-orchestration-go/internal/restinterface/resthelper"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -37,17 +38,18 @@ import (
 )
 
 const (
-	deviceNameKey       = "deviceName"
-	resourceNameKey     = "resourceName"
-	apiResourceRoute    = clients.ApiBase + "/resource/{" + deviceNameKey + "}/{" + resourceNameKey + "}"
-	handlerContextKey   = "StorageHandler"
-	configPath          = "res/configuration.toml"
+	deviceNameKey     = "deviceName"
+	resourceNameKey   = "resourceName"
+	apiResourceRoute  = clients.ApiBase + "/resource/{" + deviceNameKey + "}/{" + resourceNameKey + "}"
+	handlerContextKey = "StorageHandler"
+	configPath        = "res/configuration.toml"
 )
 
 type StorageHandler struct {
 	service     *sdk.DeviceService
 	logger      logger.LoggingClient
 	asyncValues chan<- *models.AsyncValues
+	helper      resthelper.RestHelper
 }
 
 func NewStorageHandler(service *sdk.DeviceService, logger logger.LoggingClient, asyncValues chan<- *models.AsyncValues) *StorageHandler {
@@ -55,6 +57,7 @@ func NewStorageHandler(service *sdk.DeviceService, logger logger.LoggingClient, 
 		service:     service,
 		logger:      logger,
 		asyncValues: asyncValues,
+		helper:      resthelper.GetHelper(),
 	}
 
 	return &handler
@@ -110,21 +113,19 @@ func (handler StorageHandler) processAsyncGetRequest(writer http.ResponseWriter,
 		return
 	}
 
-	RequestUrl := "http://" + ServerIP + ":48080/api/v1/reading/name/" + resourceName + "/device/" + deviceName + "/1"
+	readingAPI := "/api/v1/reading/name/" + resourceName + "/device/" + deviceName + "/1"
+	readingPort := 48080
+
+	RequestUrl := handler.helper.MakeTargetURL(ServerIP, readingPort, readingAPI)
 	log.Println(RequestUrl)
-	resp, err := http.Get(RequestUrl)
+	resp, _, err := handler.helper.DoGet(RequestUrl)
 	if err != nil {
 		http.Error(writer, fmt.Sprintf("Resource not found"), http.StatusNotFound)
 		return
 	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(writer, fmt.Sprintf("Unable to fetch the response"), http.StatusNotFound)
-		return
-	}
+	fmt.Fprintf(writer, string(resp))
 
-	fmt.Fprintf(writer, string(bodyBytes))
 }
 
 func (handler StorageHandler) processAsyncPostRequest(writer http.ResponseWriter, request *http.Request) {
@@ -244,7 +245,7 @@ func deviceHandler(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte("Bad context pass to handler"))
 		return
 	}
-	switch request.Method{
+	switch request.Method {
 	case "GET":
 		handler.processAsyncGetRequest(writer, request)
 	case "POST":
