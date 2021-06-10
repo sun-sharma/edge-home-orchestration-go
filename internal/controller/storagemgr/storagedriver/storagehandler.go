@@ -106,7 +106,7 @@ func (handler StorageHandler) processAsyncGetRequest(writer http.ResponseWriter,
 		return
 	}
 
-	ServerIP, err := getServerIP(configPath)
+	serverIP, readingPort, err := getServerIP(configPath)
 
 	if err != nil {
 		http.Error(writer, fmt.Sprintf("Configuration File Not Found"), http.StatusNotFound)
@@ -114,11 +114,10 @@ func (handler StorageHandler) processAsyncGetRequest(writer http.ResponseWriter,
 	}
 
 	readingAPI := "/api/v1/reading/name/" + resourceName + "/device/" + deviceName + "/1"
-	readingPort := 48080
 
-	RequestUrl := handler.helper.MakeTargetURL(ServerIP, readingPort, readingAPI)
-	log.Println(RequestUrl)
-	resp, _, err := handler.helper.DoGet(RequestUrl)
+	requestUrl := handler.helper.MakeTargetURL(serverIP, int(readingPort), readingAPI)
+	log.Println(requestUrl)
+	resp, _, err := handler.helper.DoGet(requestUrl)
 	if err != nil {
 		http.Error(writer, fmt.Sprintf("Resource not found"), http.StatusNotFound)
 		return
@@ -466,10 +465,10 @@ func checkFloatValueRange(valueType models.ValueType, val float64) bool {
 	return isValid
 }
 
-func getServerIP(ConfigPath string) (string, error) {
+func getServerIP(ConfigPath string) (string, int64, error) {
 	config, err := toml.LoadFile(ConfigPath)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return config.Get("Clients.Data.Host").(string), nil
+	return config.Get("Clients.Data.Host").(string), config.Get("Clients.Data.Port").(int64), nil
 }
